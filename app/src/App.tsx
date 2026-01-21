@@ -19,11 +19,13 @@ import { Button } from '@ui5/webcomponents-react/Button'
 import { Form } from '@ui5/webcomponents-react/Form'
 import { FormItem } from '@ui5/webcomponents-react/FormItem'
 import { Input } from '@ui5/webcomponents-react/Input'
+import { TextArea } from '@ui5/webcomponents-react/TextArea'
 import { Select } from '@ui5/webcomponents-react/Select'
 import { Option } from '@ui5/webcomponents-react/Option'
 import { DatePicker } from '@ui5/webcomponents-react/DatePicker'
 import { Label } from '@ui5/webcomponents-react/Label'
 import addIcon from '@ui5/webcomponents-icons/dist/add.js'
+import editIcon from '@ui5/webcomponents-icons/dist/edit.js'
 import type { Task, TaskStatus } from './types'
 
 const TAG_DESIGN: Record<TaskStatus, 'Positive' | 'Critical' | 'Information' | 'Neutral'> = {
@@ -42,19 +44,41 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 
 const EMPTY_FORM = { title: '', description: '', dueDate: '', status: 'open' as TaskStatus }
 
-interface CreateTaskDialogProps {
+type FormValues = typeof EMPTY_FORM
+
+interface TaskDialogProps {
   open: boolean
+  editTask: Task | null   // null = create mode, Task = edit mode
   onClose: () => void
   onCreated: (task: Task) => void
+  onUpdated: (task: Task) => void
 }
 
-function CreateTaskDialog({ open, onClose, onCreated }: CreateTaskDialogProps) {
-  const [form, setForm] = useState(EMPTY_FORM)
+function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialogProps) {
+  const isEdit = editTask !== null
+
+  const [form, setForm] = useState<FormValues>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Populate form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setForm(
+        isEdit
+          ? {
+              title: editTask.title ?? '',
+              description: editTask.description ?? '',
+              dueDate: editTask.dueDate ?? '',
+              status: editTask.status,
+            }
+          : EMPTY_FORM,
+      )
+      setError(null)
+    }
+  }, [open])
+
   function handleClose() {
-    setForm(EMPTY_FORM)
     setError(null)
     onClose()
   }
@@ -67,19 +91,34 @@ function CreateTaskDialog({ open, onClose, onCreated }: CreateTaskDialogProps) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/odata/v4/tasks/Tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: form.title.trim(),
-          description: form.description.trim() || null,
-          dueDate: form.dueDate || null,
-          status: form.status,
-        }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const created: Task = await res.json()
-      onCreated(created)
+      if (isEdit) {
+        const res = await fetch(`/odata/v4/tasks/Tasks(${editTask.ID})`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: form.title.trim(),
+            description: form.description.trim() || null,
+            dueDate: form.dueDate || null,
+            status: form.status,
+          }),
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        onUpdated({ ...editTask, ...form, title: form.title.trim(), description: form.description.trim() || '' })
+      } else {
+        const res = await fetch('/odata/v4/tasks/Tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: form.title.trim(),
+            description: form.description.trim() || null,
+            dueDate: form.dueDate || null,
+            status: form.status,
+          }),
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const created: Task = await res.json()
+        onCreated(created)
+      }
       handleClose()
     } catch (err: unknown) {
       setError(String(err))
@@ -92,13 +131,13 @@ function CreateTaskDialog({ open, onClose, onCreated }: CreateTaskDialogProps) {
     <Dialog
       open={open}
       onClose={handleClose}
-      headerText="New Task"
+      headerText={isEdit ? 'Edit Task' : 'New Task'}
       footer={
         <Bar
           endContent={
             <>
               <Button design="Emphasized" onClick={handleSubmit} disabled={saving}>
-                {saving ? 'Creating…' : 'Create'}
+                {saving ? (isEdit ? 'Saving…' : 'Creating…') : isEdit ? 'Save' : 'Create'}
               </Button>
               <Button design="Transparent" onClick={handleClose} disabled={saving}>
                 Cancel
@@ -123,10 +162,11 @@ function CreateTaskDialog({ open, onClose, onCreated }: CreateTaskDialogProps) {
           />
         </FormItem>
         <FormItem labelContent={<Label>Description</Label>}>
-          <Input
+          <TextArea
             value={form.description}
             onInput={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             placeholder="Optional description"
+            rows={4}
             style={{ width: '100%' }}
           />
         </FormItem>
@@ -161,6 +201,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editTask, setEditTask] = useState<Task | null>(null)
 
   useEffect(() => {
     fetch('/odata/v4/tasks/Tasks')
@@ -173,14 +214,25 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [])
 
+  function openCreate() {
+    setEditTask(null)
+    setDialogOpen(true)
+  }
+
+  function openEdit(task: Task) {
+    setEditTask(task)
+    setDialogOpen(true)
+  }
+
+  function handleClose() {
+    setDialogOpen(false)
+    setEditTask(null)
+  }
+
   return (
     <ThemeProvider>
       <ShellBar primaryTitle="SAP Tasks" secondaryTitle="Task Management">
-        <ShellBarItem
-          icon={addIcon}
-          text="New Task"
-          onClick={() => setDialogOpen(true)}
-        />
+        <ShellBarItem icon={addIcon} text="New Task" onClick={openCreate} />
       </ShellBar>
 
       <FlexBox direction="Column" style={{ padding: '1rem 2rem' }}>
@@ -210,6 +262,7 @@ export default function App() {
                 <TableHeaderCell>Description</TableHeaderCell>
                 <TableHeaderCell>Due Date</TableHeaderCell>
                 <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell />
               </TableHeaderRow>
             }
           >
@@ -223,16 +276,28 @@ export default function App() {
                     {STATUS_LABEL[task.status] ?? task.status}
                   </Tag>
                 </TableCell>
+                <TableCell>
+                  <Button
+                    icon={editIcon}
+                    design="Transparent"
+                    tooltip="Edit task"
+                    onClick={() => openEdit(task)}
+                  />
+                </TableCell>
               </TableRow>
             ))}
           </Table>
         )}
       </FlexBox>
 
-      <CreateTaskDialog
+      <TaskDialog
         open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
+        editTask={editTask}
+        onClose={handleClose}
         onCreated={(task) => setTasks((prev) => [...prev, task])}
+        onUpdated={(updated) =>
+          setTasks((prev) => prev.map((t) => (t.ID === updated.ID ? updated : t)))
+        }
       />
     </ThemeProvider>
   )
