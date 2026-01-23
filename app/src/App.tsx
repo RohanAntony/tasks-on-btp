@@ -26,7 +26,8 @@ import { DatePicker } from '@ui5/webcomponents-react/DatePicker'
 import { Label } from '@ui5/webcomponents-react/Label'
 import addIcon from '@ui5/webcomponents-icons/dist/add.js'
 import editIcon from '@ui5/webcomponents-icons/dist/edit.js'
-import type { Task, TaskStatus } from './types'
+import historyIcon from '@ui5/webcomponents-icons/dist/history.js'
+import type { Task, TaskHistory, TaskStatus } from './types'
 
 const TAG_DESIGN: Record<TaskStatus, 'Positive' | 'Critical' | 'Information' | 'Neutral'> = {
   open: 'Neutral',
@@ -196,12 +197,73 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
   )
 }
 
+interface TaskHistoryDialogProps {
+  task: Task | null
+  onClose: () => void
+}
+
+function TaskHistoryDialog({ task, onClose }: TaskHistoryDialogProps) {
+  const [history, setHistory] = useState<TaskHistory[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!task) return
+    setLoading(true)
+    fetch(`/odata/v4/tasks/Tasks(${task.ID})/history?$orderby=createdAt desc`)
+      .then((res) => res.json())
+      .then((data: { value: TaskHistory[] }) => setHistory(data.value ?? []))
+      .finally(() => setLoading(false))
+  }, [task])
+
+  return (
+    <Dialog
+      open={!!task}
+      onClose={onClose}
+      headerText={task ? `History — ${task.title}` : 'History'}
+      footer={<Bar endContent={<Button design="Transparent" onClick={onClose}>Close</Button>} />}
+    >
+      <div style={{ minWidth: '480px', padding: '0.5rem 0' }}>
+        {loading && <BusyIndicator active size="M" />}
+        {!loading && history.length === 0 && (
+          <MessageStrip design="Information" hideCloseButton>
+            No changes recorded yet.
+          </MessageStrip>
+        )}
+        {!loading && history.length > 0 && (
+          <Table
+            headerRow={
+              <TableHeaderRow>
+                <TableHeaderCell>Field</TableHeaderCell>
+                <TableHeaderCell>Old Value</TableHeaderCell>
+                <TableHeaderCell>New Value</TableHeaderCell>
+                <TableHeaderCell>Changed At</TableHeaderCell>
+              </TableHeaderRow>
+            }
+          >
+            {history.map((entry) => (
+              <TableRow key={entry.ID}>
+                <TableCell>{entry.field}</TableCell>
+                <TableCell>{entry.oldValue ?? '—'}</TableCell>
+                <TableCell>{entry.newValue ?? '—'}</TableCell>
+                <TableCell>
+                  {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : '—'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </Table>
+        )}
+      </div>
+    </Dialog>
+  )
+}
+
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
+  const [historyTask, setHistoryTask] = useState<Task | null>(null)
 
   useEffect(() => {
     fetch('/odata/v4/tasks/Tasks')
@@ -260,6 +322,7 @@ export default function App() {
               <TableHeaderRow sticky>
                 <TableHeaderCell>Title</TableHeaderCell>
                 <TableHeaderCell>Description</TableHeaderCell>
+                <TableHeaderCell>Created</TableHeaderCell>
                 <TableHeaderCell>Due Date</TableHeaderCell>
                 <TableHeaderCell>Status</TableHeaderCell>
                 <TableHeaderCell />
@@ -270,7 +333,8 @@ export default function App() {
               <TableRow key={task.ID}>
                 <TableCell>{task.title}</TableCell>
                 <TableCell>{task.description}</TableCell>
-                <TableCell>{task.dueDate ?? '—'}</TableCell>
+                <TableCell>{task.createdAt ? new Date(task.createdAt).toLocaleDateString() : '—'}</TableCell>
+                <TableCell>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</TableCell>
                 <TableCell>
                   <Tag design={TAG_DESIGN[task.status]}>
                     {STATUS_LABEL[task.status] ?? task.status}
@@ -282,6 +346,12 @@ export default function App() {
                     design="Transparent"
                     tooltip="Edit task"
                     onClick={() => openEdit(task)}
+                  />
+                  <Button
+                    icon={historyIcon}
+                    design="Transparent"
+                    tooltip="View history"
+                    onClick={() => setHistoryTask(task)}
                   />
                 </TableCell>
               </TableRow>
@@ -298,6 +368,11 @@ export default function App() {
         onUpdated={(updated) =>
           setTasks((prev) => prev.map((t) => (t.ID === updated.ID ? updated : t)))
         }
+      />
+
+      <TaskHistoryDialog
+        task={historyTask}
+        onClose={() => setHistoryTask(null)}
       />
     </ThemeProvider>
   )
