@@ -29,6 +29,14 @@ import editIcon from '@ui5/webcomponents-icons/dist/edit.js'
 import historyIcon from '@ui5/webcomponents-icons/dist/history.js'
 import type { Task, TaskHistory, TaskStatus } from './types'
 
+const DATE_FORMAT: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' }
+const formatDate = (value: string | null | undefined) =>
+  value ? new Date(value).toLocaleDateString('en-GB', DATE_FORMAT) : '—'
+
+const DATETIME_FORMAT: Intl.DateTimeFormatOptions = { ...DATE_FORMAT, hour: '2-digit', minute: '2-digit', second: '2-digit' }
+const formatDateTime = (value: string | null | undefined) =>
+  value ? new Date(value).toLocaleString('en-GB', DATETIME_FORMAT) : '—'
+
 const TAG_DESIGN: Record<TaskStatus, 'Positive' | 'Critical' | 'Information' | 'Neutral'> = {
   open: 'Neutral',
   in_progress: 'Information',
@@ -243,10 +251,10 @@ function TaskHistoryDialog({ task, onClose }: TaskHistoryDialogProps) {
             {history.map((entry) => (
               <TableRow key={entry.ID}>
                 <TableCell>{entry.field}</TableCell>
-                <TableCell>{entry.oldValue ?? '—'}</TableCell>
-                <TableCell>{entry.newValue ?? '—'}</TableCell>
+                <TableCell>{entry.field === 'dueDate' ? formatDate(entry.oldValue) : (entry.oldValue ?? '—')}</TableCell>
+                <TableCell>{entry.field === 'dueDate' ? formatDate(entry.newValue) : (entry.newValue ?? '—')}</TableCell>
                 <TableCell>
-                  {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : '—'}
+                  {entry.createdAt ? formatDateTime(entry.createdAt) : '—'}
                 </TableCell>
               </TableRow>
             ))}
@@ -333,8 +341,8 @@ export default function App() {
               <TableRow key={task.ID}>
                 <TableCell>{task.title}</TableCell>
                 <TableCell>{task.description}</TableCell>
-                <TableCell>{task.createdAt ? new Date(task.createdAt).toLocaleDateString() : '—'}</TableCell>
-                <TableCell>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</TableCell>
+                <TableCell>{formatDate(task.createdAt)}</TableCell>
+                <TableCell>{formatDate(task.dueDate)}</TableCell>
                 <TableCell>
                   <Tag design={TAG_DESIGN[task.status]}>
                     {STATUS_LABEL[task.status] ?? task.status}
