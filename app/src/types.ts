@@ -1,5 +1,15 @@
 export type TaskStatus = 'open' | 'in_progress' | 'review' | 'completed'
 
+export interface Tag {
+  ID: string
+  name: string
+}
+
+export interface TaskTag {
+  tag_ID: string
+  tag: Tag
+}
+
 export interface TaskHistory {
   ID: string
   field: string
@@ -15,4 +25,5 @@ export interface Task {
   dueDate: string
   status: TaskStatus
   createdAt: string
+  tags?: TaskTag[]
 }

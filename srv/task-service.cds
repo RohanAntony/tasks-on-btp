@@ -15,6 +15,17 @@ type TaskStatus : String enum {
         dueDate     : Date;
         status      : TaskStatus;
         history     : Composition of many TaskHistory on history.task = $self;
+        tags        : Composition of many TaskTags on tags.task = $self;
+  }
+
+  entity Tags {
+    key ID    : UUID;
+        name  : String(50);
+  }
+
+  entity TaskTags {
+    key task  : Association to Tasks;
+    key tag   : Association to Tags;
   }
 
   entity TaskHistory : managed {
