@@ -1,8 +1,9 @@
 import '@ui5/webcomponents-react/dist/Assets.js'
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ThemeProvider } from '@ui5/webcomponents-react/ThemeProvider'
 import { ShellBar } from '@ui5/webcomponents-react/ShellBar'
 import { ShellBarItem } from '@ui5/webcomponents-react/ShellBarItem'
+import { FlexibleColumnLayout } from '@ui5/webcomponents-react/FlexibleColumnLayout'
 import { Table } from '@ui5/webcomponents-react/Table'
 import { TableHeaderRow } from '@ui5/webcomponents-react/TableHeaderRow'
 import { TableHeaderCell } from '@ui5/webcomponents-react/TableHeaderCell'
@@ -24,10 +25,13 @@ import { Select } from '@ui5/webcomponents-react/Select'
 import { Option } from '@ui5/webcomponents-react/Option'
 import { DatePicker } from '@ui5/webcomponents-react/DatePicker'
 import { Label } from '@ui5/webcomponents-react/Label'
+import { Text } from '@ui5/webcomponents-react/Text'
+import FCLLayout from '@ui5/webcomponents-fiori/dist/types/FCLLayout.js'
 import addIcon from '@ui5/webcomponents-icons/dist/add.js'
 import editIcon from '@ui5/webcomponents-icons/dist/edit.js'
 import historyIcon from '@ui5/webcomponents-icons/dist/history.js'
 import declineIcon from '@ui5/webcomponents-icons/dist/decline.js'
+import closeIcon from '@ui5/webcomponents-icons/dist/decline.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { Task, TaskHistory, TaskStatus, Tag as TagType } from './types'
 
@@ -39,10 +43,10 @@ const DATETIME_FORMAT: Intl.DateTimeFormatOptions = { ...DATE_FORMAT, hour: '2-d
 const formatDateTime = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleString('en-GB', DATETIME_FORMAT) : '—'
 
-const STATUS_DESIGN: Record<TaskStatus, 'Positive' | 'Critical' | 'Information' | 'Neutral'> = {
-  open: 'Neutral',
-  in_progress: 'Information',
-  review: 'Critical',
+const STATUS_DESIGN: Record<TaskStatus, 'Positive' | 'Critical' | 'Information' | 'Neutral' | 'Negative'> = {
+  open: 'Negative',
+  in_progress: 'Critical',
+  review: 'Information',
   completed: 'Positive',
 }
 
@@ -53,12 +57,33 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   completed: 'Completed',
 }
 
-function tagColorScheme(name: string): string {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) >>> 0
-  }
-  return String((hash % 10) + 1)
+function tagTextColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.55 ? '#3a3a3a' : '#ffffff'
+}
+
+function ColorTag({ name, color }: { name: string; color: string | null }) {
+  const bg = color ?? '#e0e0e0'
+  const fg = color ? tagTextColor(color) : '#3a3a3a'
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '0.125rem 0.5rem',
+      borderRadius: '0.75rem',
+      fontSize: 'var(--sapFontSmallSize)',
+      fontFamily: 'var(--sapFontFamily)',
+      backgroundColor: bg,
+      color: fg,
+      border: `1px solid ${bg}`,
+      whiteSpace: 'nowrap',
+    }}>
+      {name}
+    </span>
+  )
 }
 
 const EMPTY_FORM = { title: '', description: '', dueDate: '', status: 'open' as TaskStatus }
@@ -77,11 +102,22 @@ interface TaskDialogProps {
 function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialogProps) {
   const isEdit = editTask !== null
   const [form, setForm] = useState<FormValues>(EMPTY_FORM)
-  const [tags, setTags] = useState<TagType[]>([])   // tags on this task
+  const [tags, setTags] = useState<TagType[]>([])
+  const [allTags, setAllTags] = useState<TagType[]>([])
   const [tagInput, setTagInput] = useState('')
+  const [tagColor, setTagColor] = useState('#b3d9ff')
+  const [tagTab, setTagTab] = useState<'existing' | 'new'>('existing')
+  const [selectedExistingTagId, setSelectedExistingTagId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const tagInputRef = useRef<InputDomRef>(null)
+
+  useEffect(() => {
+    if (!open) return
+    fetch('/odata/v4/tasks/Tags?$orderby=name')
+      .then((res) => res.json())
+      .then((data: { value: TagType[] }) => setAllTags((data.value ?? []).filter((t) => t != null && t.name != null)))
+  }, [open])
 
   useEffect(() => {
     if (open) {
@@ -90,41 +126,39 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
           ? { title: editTask.title ?? '', description: editTask.description ?? '', dueDate: editTask.dueDate ?? '', status: editTask.status }
           : EMPTY_FORM,
       )
-      setTags(isEdit ? (editTask.tags ?? []).map((tt) => tt.tag) : [])
+      setTags(isEdit ? (editTask.tags ?? []).filter((tt) => tt.tag != null).map((tt) => tt.tag) : [])
       setTagInput('')
+      setTagColor('#b3d9ff')
+      setTagTab('existing')
+      setSelectedExistingTagId('')
       setError(null)
     }
   }, [open])
 
-  function addTag() {
+  function selectExistingTag(tag: TagType) {
+    if (tags.some((t) => t.ID === tag.ID)) return
+    setTags((prev) => [...prev, tag])
+  }
+
+  function addNewTag() {
     const name = tagInput.trim()
-    if (!name || tags.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
-      setTagInput('')
-      return
-    }
-    setTags((prev) => [...prev, { ID: '', name }])
+    if (!name || tags.some((t) => t.name.toLowerCase() === name.toLowerCase())) { setTagInput(''); return }
+    setTags((prev) => [...prev, { ID: '', name, color: tagColor }])
     setTagInput('')
+    setTagColor('#b3d9ff')
     tagInputRef.current?.focus()
   }
 
-  function removeTag(name: string) {
-    setTags((prev) => prev.filter((t) => t.name !== name))
-  }
-
-  function handleClose() {
-    setError(null)
-    onClose()
-  }
+  function removeTag(name: string) { setTags((prev) => prev.filter((t) => t.name !== name)) }
+  function handleClose() { setError(null); onClose() }
 
   async function handleSubmit() {
     if (!form.title.trim()) { setError('Title is required.'); return }
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
       let savedTask: Task
-
       if (isEdit) {
-        const res = await fetch(`/odata/v4/tasks/Tasks(${editTask.ID})`, {
+        const res = await fetch(`/odata/v4/tasks/Tasks('${editTask.ID}')`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: form.title.trim(), description: form.description.trim() || null, dueDate: form.dueDate || null, status: form.status }),
@@ -141,40 +175,22 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
         savedTask = await res.json()
       }
 
-      // Sync tags: resolve each tag name to an ID (create if needed), then replace task tags
       const resolvedTags = await Promise.all(
         tags.map(async (t) => {
           if (t.ID) return t
-          // Try to find existing tag by name
           const searchRes = await fetch(`/odata/v4/tasks/Tags?$filter=name eq '${encodeURIComponent(t.name)}'`)
           const searchData: { value: TagType[] } = await searchRes.json()
           if (searchData.value.length > 0) return searchData.value[0]
-          // Create new tag
-          const createRes = await fetch('/odata/v4/tasks/Tags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: t.name }),
-          })
-          return (await createRes.json()) as TagType
+          const createRes = await fetch('/odata/v4/tasks/Tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: t.name, color: t.color ?? null }) })
+          const created = (await createRes.json()) as TagType
+          setAllTags((prev) => [...prev, created].filter((t) => t != null && t.name != null))
+          return created
         }),
       )
 
-      // Delete all existing task-tag links then re-create
-      const existingLinks = editTask?.tags ?? []
-      await Promise.all(
-        existingLinks.map((tt) =>
-          fetch(`/odata/v4/tasks/TaskTags(task_ID=${savedTask.ID},tag_ID=${tt.tag.ID})`, { method: 'DELETE' }),
-        ),
-      )
-      await Promise.all(
-        resolvedTags.map((tag) =>
-          fetch('/odata/v4/tasks/TaskTags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ task_ID: savedTask.ID, tag_ID: tag.ID }),
-          }),
-        ),
-      )
+      const existingLinks = (editTask?.tags ?? []).filter((tt) => tt.tag != null)
+      await Promise.all(existingLinks.map((tt) => fetch(`/odata/v4/tasks/TaskTags(task_ID='${savedTask.ID}',tag_ID='${tt.tag.ID}')`, { method: 'DELETE' })))
+      await Promise.all(resolvedTags.map((tag) => fetch('/odata/v4/tasks/TaskTags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_ID: savedTask.ID, tag_ID: tag.ID }) })))
 
       savedTask.tags = resolvedTags.map((tag) => ({ tag_ID: tag.ID, tag }))
       isEdit ? onUpdated(savedTask) : onCreated(savedTask)
@@ -185,6 +201,14 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
       setSaving(false)
     }
   }
+
+  const availableTags = allTags.filter((t) => t != null && t.name != null && !tags.some((sel) => sel.ID === t.ID))
+
+  useEffect(() => {
+    if (tagTab === 'existing' && availableTags.length > 0 && !availableTags.find((t) => t.ID === selectedExistingTagId)) {
+      setSelectedExistingTagId(availableTags[0].ID)
+    }
+  }, [availableTags, tagTab])
 
   return (
     <Dialog
@@ -202,10 +226,8 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
         } />
       }
     >
-      <Form style={{ minWidth: '400px', padding: '0.5rem 0' }}>
-        {error && (
-          <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '0.75rem' }}>{error}</MessageStrip>
-        )}
+      <Form style={{ minWidth: '460px', padding: '0.5rem 0' }}>
+        {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '0.75rem' }}>{error}</MessageStrip>}
         <FormItem labelContent={<Label required>Title</Label>}>
           <Input value={form.title} onInput={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Enter task title" style={{ width: '100%' }} />
         </FormItem>
@@ -224,25 +246,90 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
         </FormItem>
         <FormItem labelContent={<Label>Tags</Label>}>
           <FlexBox direction="Column" style={{ width: '100%', gap: '0.5rem' }}>
-            <FlexBox style={{ gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              {tags.map((t) => (
-                <FlexBox key={t.name} style={{ alignItems: 'center', gap: '0.125rem' }}>
-                  <Tag colorScheme={tagColorScheme(t.name)}>{t.name}</Tag>
-                  <Button icon={declineIcon} design="Transparent" tooltip={`Remove ${t.name}`} onClick={() => removeTag(t.name)} />
-                </FlexBox>
+
+            {/* Selected tags */}
+            {tags.length > 0 && (
+              <FlexBox style={{ gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {tags.map((t) => (
+                  <FlexBox key={t.name} style={{ alignItems: 'center', gap: '0.125rem' }}>
+                    <ColorTag name={t.name} color={t.color ?? null} />
+                    <Button icon={declineIcon} design="Transparent" tooltip={`Remove ${t.name}`} onClick={() => removeTag(t.name)} />
+                  </FlexBox>
+                ))}
+              </FlexBox>
+            )}
+
+            {/* Tab bar */}
+            <FlexBox style={{ borderBottom: '1px solid var(--sapGroup_TitleBorderColor)' }}>
+              {(['existing', 'new'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setTagTab(tab)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: tagTab === tab ? '2px solid var(--sapSelectedColor)' : '2px solid transparent',
+                    color: tagTab === tab ? 'var(--sapSelectedColor)' : 'var(--sapContent_LabelColor)',
+                    fontFamily: 'var(--sapFontFamily)',
+                    fontSize: 'var(--sapFontSize)',
+                    fontWeight: tagTab === tab ? 'bold' : 'normal',
+                    padding: '0.35rem 0.75rem',
+                    cursor: 'pointer',
+                    marginBottom: '-1px',
+                  }}
+                >
+                  {tab === 'existing' ? 'Select Existing' : 'Create New'}
+                </button>
               ))}
             </FlexBox>
-            <FlexBox style={{ gap: '0.5rem' }}>
-              <Input
-                ref={tagInputRef}
-                value={tagInput}
-                onInput={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                placeholder="Add a tag…"
-                style={{ flex: 1 }}
-              />
-              <Button icon={addIcon} design="Default" onClick={addTag}>Add</Button>
-            </FlexBox>
+
+            {/* Pick existing tag */}
+            {tagTab === 'existing' && (
+              <FlexBox style={{ gap: '0.5rem', alignItems: 'center' }}>
+                <Select
+                  onChange={(e) => setSelectedExistingTagId(e.detail.selectedOption.dataset.id ?? '')}
+                  style={{ flex: 1 }}
+                >
+                  {availableTags.map((t) => (
+                    <Option key={t.ID} data-id={t.ID}>{t.name}</Option>
+                  ))}
+                </Select>
+                <Button
+                  icon={addIcon}
+                  design="Default"
+                  disabled={!selectedExistingTagId}
+                  onClick={() => {
+                    const tag = allTags.find((t) => t.ID === selectedExistingTagId)
+                    if (tag) { selectExistingTag(tag); setSelectedExistingTagId('') }
+                  }}
+                >
+                  Add
+                </Button>
+              </FlexBox>
+            )}
+
+            {/* Create new tag */}
+            {tagTab === 'new' && (
+              <FlexBox style={{ gap: '0.5rem', alignItems: 'center' }}>
+                <Input
+                  ref={tagInputRef}
+                  value={tagInput}
+                  onInput={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addNewTag() } }}
+                  placeholder="New tag name…"
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="color"
+                  value={tagColor}
+                  onChange={(e) => setTagColor(e.target.value)}
+                  title="Tag color"
+                  style={{ width: '2.25rem', height: '2.25rem', border: '1px solid var(--sapField_BorderColor)', padding: '0.2rem', borderRadius: '0.25rem', cursor: 'pointer', background: 'none', boxSizing: 'border-box' }}
+                />
+                <Button icon={addIcon} design="Default" onClick={addNewTag}>Add</Button>
+              </FlexBox>
+            )}
+
           </FlexBox>
         </FormItem>
       </Form>
@@ -264,7 +351,7 @@ function TaskHistoryDialog({ task, onClose }: TaskHistoryDialogProps) {
   useEffect(() => {
     if (!task) return
     setLoading(true)
-    fetch(`/odata/v4/tasks/Tasks(${task.ID})/history?$orderby=createdAt desc`)
+    fetch(`/odata/v4/tasks/Tasks('${task.ID}')/history?$orderby=createdAt desc`)
       .then((res) => res.json())
       .then((data: { value: TaskHistory[] }) => setHistory(data.value ?? []))
       .finally(() => setLoading(false))
@@ -308,22 +395,144 @@ function TaskHistoryDialog({ task, onClose }: TaskHistoryDialogProps) {
   )
 }
 
+// ─── TaskDetailPanel ──────────────────────────────────────────────────────────
+
+interface TaskDetailPanelProps {
+  task: Task
+  onEdit: () => void
+  onClose: () => void
+}
+
+function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
+  const [history, setHistory] = useState<TaskHistory[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  useEffect(() => {
+    setHistoryLoading(true)
+    fetch(`/odata/v4/tasks/Tasks('${task.ID}')/history?$orderby=createdAt desc`)
+      .then((res) => res.json())
+      .then((data: { value: TaskHistory[] }) => setHistory(data.value ?? []))
+      .finally(() => setHistoryLoading(false))
+  }, [task.ID])
+  const sectionStyle: React.CSSProperties = {
+    background: 'var(--sapGroup_ContentBackground)',
+    border: '1px solid var(--sapGroup_TitleBorderColor)',
+    borderRadius: '0.5rem',
+    overflow: 'hidden',
+  }
+  const sectionHeaderStyle: React.CSSProperties = {
+    background: 'var(--sapGroup_TitleBackground)',
+    borderBottom: '1px solid var(--sapGroup_TitleBorderColor)',
+    padding: '0.5rem 0.75rem',
+    fontWeight: 'bold',
+    fontSize: 'var(--sapFontHeaderSize)',
+  }
+  const gridStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr',
+    gap: '0.6rem 1.25rem',
+    padding: '0.75rem',
+    alignItems: 'center',
+  }
+
+  return (
+    <FlexBox direction="Column" style={{ height: '100%', background: 'var(--sapBackgroundColor)', borderLeft: '1px solid var(--sapGroup_TitleBorderColor)' }}>
+      {/* Header */}
+      <Bar
+        startContent={<Title level="H4" style={{ margin: 0 }}>{task.title}</Title>}
+        endContent={
+          <>
+            <Button icon={editIcon} design="Transparent" tooltip="Edit task" onClick={onEdit} />
+            <Button icon={closeIcon} design="Transparent" tooltip="Close" onClick={onClose} />
+          </>
+        }
+        style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--sapGroup_TitleBorderColor)' }}
+      />
+
+      {/* Body */}
+      <FlexBox direction="Column" style={{ padding: '1rem', gap: '1rem', overflowY: 'auto', flex: 1 }}>
+
+        {/* Details section */}
+        <div style={sectionStyle}>
+          <div style={sectionHeaderStyle}>Details</div>
+          <div style={gridStyle}>
+            <Label>Status</Label>
+            <Tag design={STATUS_DESIGN[task.status]}>{STATUS_LABEL[task.status]}</Tag>
+
+            <Label>Created</Label>
+            <span style={{ fontSize: 'var(--sapFontSize)' }}>{formatDate(task.createdAt)}</span>
+
+            <Label>Due Date</Label>
+            <span style={{ fontSize: 'var(--sapFontSize)' }}>{formatDate(task.dueDate)}</span>
+
+            {(task.tags ?? []).length > 0 && (
+              <>
+                <Label>Tags</Label>
+                <FlexBox style={{ gap: '0.25rem', flexWrap: 'wrap' }}>
+                  {(task.tags ?? []).filter((tt) => tt.tag != null).map((tt) => (
+                    <ColorTag key={tt.tag.ID} name={tt.tag.name} color={tt.tag.color ?? null} />
+                  ))}
+                </FlexBox>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Description section */}
+        {task.description && (
+          <div style={sectionStyle}>
+            <div style={sectionHeaderStyle}>Description</div>
+            <div style={{ padding: '0.75rem' }}>
+              <Text style={{ whiteSpace: 'pre-wrap' }}>{task.description}</Text>
+            </div>
+          </div>
+        )}
+
+        {/* History section */}
+        <div style={sectionStyle}>
+          <div style={sectionHeaderStyle}>History</div>
+          <div style={{ padding: '0.75rem' }}>
+            {historyLoading && <BusyIndicator active size="S" />}
+            {!historyLoading && history.length === 0 && (
+              <Text style={{ color: 'var(--sapNeutralColor)' }}>No changes recorded yet.</Text>
+            )}
+            {!historyLoading && history.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,auto) minmax(80px,auto) minmax(80px,auto) minmax(120px,1fr)', gap: '0.4rem 1rem', alignItems: 'center', fontSize: 'var(--sapFontSize)' }}>
+                <span style={{ fontWeight: 'bold' }}>Field</span>
+                <span style={{ fontWeight: 'bold' }}>Old</span>
+                <span style={{ fontWeight: 'bold' }}>New</span>
+                <span style={{ fontWeight: 'bold' }}>Changed At</span>
+                {history.map((entry) => (
+                  <React.Fragment key={entry.ID}>
+                    <span>{entry.field}</span>
+                    <span>{entry.field === 'dueDate' ? formatDate(entry.oldValue) : (entry.oldValue ?? '—')}</span>
+                    <span>{entry.field === 'dueDate' ? formatDate(entry.newValue) : (entry.newValue ?? '—')}</span>
+                    <span>{formatDateTime(entry.createdAt)}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+      </FlexBox>
+    </FlexBox>
+  )
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
-  const [historyTask, setHistoryTask] = useState<Task | null>(null)
 
   useEffect(() => {
     fetch('/odata/v4/tasks/Tasks?$expand=tags($expand=tag)')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json()
-      })
+      .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json() })
       .then((data: { value: Task[] }) => setTasks(data.value ?? []))
       .catch((err: unknown) => setFetchError(String(err)))
       .finally(() => setLoading(false))
@@ -333,80 +542,104 @@ export default function App() {
   function openEdit(task: Task) { setEditTask(task); setDialogOpen(true) }
   function handleClose() { setDialogOpen(false); setEditTask(null) }
 
+  function handleUpdated(updated: Task) {
+    setTasks((prev) => prev.map((t) => (t.ID === updated.ID ? updated : t)))
+    if (selectedTask?.ID === updated.ID) setSelectedTask(updated)
+  }
+
+  const startColumn = (
+    <FlexBox direction="Column" style={{ height: '100%' }}>
+      <FlexBox
+        alignItems="Center"
+        justifyContent="SpaceBetween"
+        style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--sapGroup_TitleBorderColor)' }}
+      >
+        <Title level="H3">Tasks</Title>
+      </FlexBox>
+
+      {loading && <BusyIndicator active size="L" style={{ margin: '2rem auto' }} />}
+
+      {fetchError && (
+        <MessageStrip design="Negative" hideCloseButton style={{ margin: '1rem' }}>
+          Failed to load tasks: {fetchError}
+        </MessageStrip>
+      )}
+
+      {!loading && !fetchError && tasks.length === 0 && (
+        <MessageStrip design="Information" hideCloseButton style={{ margin: '1rem' }}>
+          No tasks found. Start by adding a new task.
+        </MessageStrip>
+      )}
+
+      {!loading && !fetchError && tasks.length > 0 && (
+        <Table
+          headerRow={
+            <TableHeaderRow sticky>
+              <TableHeaderCell>Title</TableHeaderCell>
+              <TableHeaderCell>Tags</TableHeaderCell>
+              <TableHeaderCell>Due Date</TableHeaderCell>
+              <TableHeaderCell>Status</TableHeaderCell>
+            </TableHeaderRow>
+          }
+        >
+          {tasks.map((task) => (
+            <TableRow
+              key={task.ID}
+              onClick={() => setSelectedTask(task)}
+              style={{ cursor: 'pointer', background: selectedTask?.ID === task.ID ? 'var(--sapList_SelectionBackgroundColor)' : undefined }}
+            >
+              <TableCell>{task.title}</TableCell>
+              <TableCell>
+                <FlexBox style={{ gap: '0.25rem', flexWrap: 'wrap' }}>
+                  {(task.tags ?? []).filter((tt) => tt.tag != null).map((tt) => (
+                    <ColorTag key={tt.tag.ID} name={tt.tag.name} color={tt.tag.color ?? null} />
+                  ))}
+                </FlexBox>
+              </TableCell>
+              <TableCell>{formatDate(task.dueDate)}</TableCell>
+              <TableCell>
+                <Tag design={STATUS_DESIGN[task.status]}>{STATUS_LABEL[task.status] ?? task.status}</Tag>
+              </TableCell>
+            </TableRow>
+          ))}
+        </Table>
+      )}
+    </FlexBox>
+  )
+
+  const midColumn = selectedTask ? (
+    <div slot="midColumn" style={{ height: '100%' }}>
+      <TaskDetailPanel
+        task={selectedTask}
+        onEdit={() => openEdit(selectedTask)}
+        onClose={() => setSelectedTask(null)}
+      />
+    </div>
+  ) : undefined
+
   return (
     <ThemeProvider>
       <ShellBar primaryTitle="SAP Tasks" secondaryTitle="Task Management">
         <ShellBarItem icon={addIcon} text="New Task" onClick={openCreate} />
       </ShellBar>
 
-      <FlexBox direction="Column" style={{ padding: '1rem 2rem' }}>
-        <Title level="H3" style={{ marginBottom: '1rem' }}>Tasks</Title>
-
-        {loading && <BusyIndicator active size="L" style={{ marginTop: '2rem' }} />}
-
-        {fetchError && (
-          <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>
-            Failed to load tasks: {fetchError}
-          </MessageStrip>
-        )}
-
-        {!loading && !fetchError && tasks.length === 0 && (
-          <MessageStrip design="Information" hideCloseButton>
-            No tasks found. Start by adding a new task.
-          </MessageStrip>
-        )}
-
-        {!loading && !fetchError && tasks.length > 0 && (
-          <Table
-            headerRow={
-              <TableHeaderRow sticky>
-                <TableHeaderCell>Title</TableHeaderCell>
-                <TableHeaderCell>Description</TableHeaderCell>
-                <TableHeaderCell>Tags</TableHeaderCell>
-                <TableHeaderCell>Created</TableHeaderCell>
-                <TableHeaderCell>Due Date</TableHeaderCell>
-                <TableHeaderCell>Status</TableHeaderCell>
-                <TableHeaderCell />
-              </TableHeaderRow>
-            }
-          >
-            {tasks.map((task) => (
-              <TableRow key={task.ID}>
-                <TableCell>{task.title}</TableCell>
-                <TableCell>{task.description}</TableCell>
-                <TableCell>
-                  <FlexBox style={{ gap: '0.25rem', flexWrap: 'wrap' }}>
-                    {(task.tags ?? []).map((tt) => (
-                      <Tag key={tt.tag.ID} colorScheme={tagColorScheme(tt.tag.name)} design="Set2">{tt.tag.name}</Tag>
-                    ))}
-                  </FlexBox>
-                </TableCell>
-                <TableCell>{formatDate(task.createdAt)}</TableCell>
-                <TableCell>{formatDate(task.dueDate)}</TableCell>
-                <TableCell>
-                  <Tag design={STATUS_DESIGN[task.status]}>
-                    {STATUS_LABEL[task.status] ?? task.status}
-                  </Tag>
-                </TableCell>
-                <TableCell>
-                  <Button icon={editIcon} design="Transparent" tooltip="Edit task" onClick={() => openEdit(task)} />
-                  <Button icon={historyIcon} design="Transparent" tooltip="View history" onClick={() => setHistoryTask(task)} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </Table>
-        )}
-      </FlexBox>
+      <FlexibleColumnLayout
+        layout={selectedTask ? FCLLayout.TwoColumnsStartExpanded : FCLLayout.OneColumn}
+        style={{ height: 'calc(100vh - 3rem)' }}
+      >
+        <div slot="startColumn" style={{ height: '100%' }}>
+          {startColumn}
+        </div>
+        {midColumn}
+      </FlexibleColumnLayout>
 
       <TaskDialog
         open={dialogOpen}
         editTask={editTask}
         onClose={handleClose}
         onCreated={(task) => setTasks((prev) => [...prev, task])}
-        onUpdated={(updated) => setTasks((prev) => prev.map((t) => (t.ID === updated.ID ? updated : t)))}
+        onUpdated={handleUpdated}
       />
-
-      <TaskHistoryDialog task={historyTask} onClose={() => setHistoryTask(null)} />
     </ThemeProvider>
   )
 }

@@ -29,6 +29,14 @@ module.exports = cds.service.impl(async function () {
     }
   })
 
+  this.after('READ', Tags, async (tags) => {
+    const list = Array.isArray(tags) ? tags : [tags]
+    await Promise.all(list.filter((tag) => tag?.ID).map(async (tag) => {
+      const row = await SELECT.one`count(*) as count`.from(TaskTags).where({ tag_ID: tag.ID })
+      tag.taskCount = row?.count ?? 0
+    }))
+  })
+
   this.after('CREATE', TaskTags, async (data) => {
     const taskId = data.task_ID
     const tagId = data.tag_ID
@@ -59,5 +67,15 @@ module.exports = cds.service.impl(async function () {
       newValue: null,
       task_ID: taskId,
     }])
+  })
+
+  this.after('DELETE', TaskTags, async (_data, req) => {
+    const tagId = req.params[0]?.tag_ID
+    if (!tagId) return
+
+    const row = await SELECT.one`count(*) as count`.from(TaskTags).where({ tag_ID: tagId })
+    if ((row?.count ?? 0) === 0) {
+      await DELETE.from(Tags).where({ ID: tagId })
+    }
   })
 })

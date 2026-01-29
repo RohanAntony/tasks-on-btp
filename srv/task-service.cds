@@ -19,8 +19,10 @@ type TaskStatus : String enum {
   }
 
   entity Tags {
-    key ID    : UUID;
-        name  : String(50);
+    key ID         : UUID;
+        name       : String(50);
+        color      : String(7);
+        taskCount  : Integer;
   }
 
   entity TaskTags {

@@ -1,0 +1,6 @@
+ID,title,description,dueDate,status,createdAt,createdBy,modifiedAt,modifiedBy
+10000000-0000-0000-0000-000000000001,Fix login page crash,"The login page crashes when the email field is left empty and the form is submitted.",2026-09-20,open,2026-09-01T08:00:00Z,anonymous,2026-09-01T08:00:00Z,anonymous
+10000000-0000-0000-0000-000000000002,Implement dark mode,"Add a dark mode toggle to the settings page using SAP Theming variables.",2026-10-01,in_progress,2026-09-02T09:00:00Z,anonymous,2026-09-02T09:00:00Z,anonymous
+10000000-0000-0000-0000-000000000003,Write API documentation,"Document all REST endpoints in the OpenAPI specification format.",2026-09-25,review,2026-09-03T10:00:00Z,anonymous,2026-09-03T10:00:00Z,anonymous
+10000000-0000-0000-0000-000000000004,Upgrade database driver,"Upgrade the PostgreSQL driver to the latest version and run regression tests.",2026-09-30,open,2026-09-04T11:00:00Z,anonymous,2026-09-04T11:00:00Z,anonymous
+10000000-0000-0000-0000-000000000005,Performance profiling,"Profile the main dashboard load time and identify bottlenecks above 200ms.",2026-10-10,completed,2026-09-05T12:00:00Z,anonymous,2026-09-05T12:00:00Z,anonymous

@@ -3,6 +3,8 @@ export type TaskStatus = 'open' | 'in_progress' | 'review' | 'completed'
 export interface Tag {
   ID: string
   name: string
+  color: string | null
+  taskCount?: number
 }
 
 export interface TaskTag {
