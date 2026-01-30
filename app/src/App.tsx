@@ -27,9 +27,12 @@ import { DatePicker } from '@ui5/webcomponents-react/DatePicker'
 import { Label } from '@ui5/webcomponents-react/Label'
 import { Text } from '@ui5/webcomponents-react/Text'
 import FCLLayout from '@ui5/webcomponents-fiori/dist/types/FCLLayout.js'
+import { ObjectPage } from '@ui5/webcomponents-react/ObjectPage'
+import { ObjectPageSection } from '@ui5/webcomponents-react/ObjectPageSection'
+import { ObjectPageTitle } from '@ui5/webcomponents-react/ObjectPageTitle'
+
 import addIcon from '@ui5/webcomponents-icons/dist/add.js'
 import editIcon from '@ui5/webcomponents-icons/dist/edit.js'
-import historyIcon from '@ui5/webcomponents-icons/dist/history.js'
 import declineIcon from '@ui5/webcomponents-icons/dist/decline.js'
 import closeIcon from '@ui5/webcomponents-icons/dist/decline.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
@@ -414,47 +417,30 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
       .then((data: { value: TaskHistory[] }) => setHistory(data.value ?? []))
       .finally(() => setHistoryLoading(false))
   }, [task.ID])
-  const sectionStyle: React.CSSProperties = {
-    background: 'var(--sapGroup_ContentBackground)',
-    border: '1px solid var(--sapGroup_TitleBorderColor)',
-    borderRadius: '0.5rem',
-    overflow: 'hidden',
-  }
-  const sectionHeaderStyle: React.CSSProperties = {
-    background: 'var(--sapGroup_TitleBackground)',
-    borderBottom: '1px solid var(--sapGroup_TitleBorderColor)',
-    padding: '0.5rem 0.75rem',
-    fontWeight: 'bold',
-    fontSize: 'var(--sapFontHeaderSize)',
-  }
+
   const gridStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: 'auto 1fr',
     gap: '0.6rem 1.25rem',
-    padding: '0.75rem',
     alignItems: 'center',
   }
 
   return (
-    <FlexBox direction="Column" style={{ height: '100%', background: 'var(--sapBackgroundColor)', borderLeft: '1px solid var(--sapGroup_TitleBorderColor)' }}>
-      {/* Header */}
-      <Bar
-        startContent={<Title level="H4" style={{ margin: 0 }}>{task.title}</Title>}
-        endContent={
-          <>
-            <Button icon={editIcon} design="Transparent" tooltip="Edit task" onClick={onEdit} />
-            <Button icon={closeIcon} design="Transparent" tooltip="Close" onClick={onClose} />
-          </>
-        }
-        style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--sapGroup_TitleBorderColor)' }}
-      />
-
-      {/* Body */}
-      <FlexBox direction="Column" style={{ padding: '1rem', gap: '1rem', overflowY: 'auto', flex: 1 }}>
-
-        {/* Details section */}
-        <div style={sectionStyle}>
-          <div style={sectionHeaderStyle}>Details</div>
+    <ObjectPage
+      style={{ height: '100%', borderLeft: '1px solid var(--sapGroup_TitleBorderColor)' }}
+      titleArea={
+        <ObjectPageTitle
+          header={task.title}
+          actionsBar={
+            <FlexBox style={{ gap: '0.25rem' }}>
+              <Button icon={editIcon} design="Transparent" tooltip="Edit task" onClick={onEdit} />
+              <Button icon={closeIcon} design="Transparent" tooltip="Close" onClick={onClose} />
+            </FlexBox>
+          }
+        />
+      }
+    >
+      <ObjectPageSection id="details" titleText="Details">
           <div style={gridStyle}>
             <Label>Status</Label>
             <Tag design={STATUS_DESIGN[task.status]}>{STATUS_LABEL[task.status]}</Tag>
@@ -465,7 +451,7 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
             <Label>Due Date</Label>
             <span style={{ fontSize: 'var(--sapFontSize)' }}>{formatDate(task.dueDate)}</span>
 
-            {(task.tags ?? []).length > 0 && (
+            {(task.tags ?? []).filter((tt) => tt.tag != null).length > 0 && (
               <>
                 <Label>Tags</Label>
                 <FlexBox style={{ gap: '0.25rem', flexWrap: 'wrap' }}>
@@ -476,47 +462,37 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
               </>
             )}
           </div>
-        </div>
+      </ObjectPageSection>
 
-        {/* Description section */}
-        {task.description && (
-          <div style={sectionStyle}>
-            <div style={sectionHeaderStyle}>Description</div>
-            <div style={{ padding: '0.75rem' }}>
-              <Text style={{ whiteSpace: 'pre-wrap' }}>{task.description}</Text>
+      {task.description && (
+        <ObjectPageSection id="description" titleText="Description">
+          <Text style={{ whiteSpace: 'pre-wrap' }}>{task.description}</Text>
+        </ObjectPageSection>
+      )}
+
+      <ObjectPageSection id="history" titleText="History">
+          {historyLoading && <BusyIndicator active size="S" />}
+          {!historyLoading && history.length === 0 && (
+            <Text style={{ color: 'var(--sapNeutralColor)' }}>No changes recorded yet.</Text>
+          )}
+          {!historyLoading && history.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 160px 160px 180px', gap: '0.4rem 1rem', alignItems: 'center', fontSize: 'var(--sapFontSize)' }}>
+              <span style={{ fontWeight: 'bold' }}>Field</span>
+              <span style={{ fontWeight: 'bold' }}>Old</span>
+              <span style={{ fontWeight: 'bold' }}>New</span>
+              <span style={{ fontWeight: 'bold' }}>Changed At</span>
+              {history.map((entry) => (
+                <React.Fragment key={entry.ID}>
+                  <span>{entry.field}</span>
+                  <span>{entry.field === 'dueDate' ? formatDate(entry.oldValue) : (entry.oldValue ?? '—')}</span>
+                  <span>{entry.field === 'dueDate' ? formatDate(entry.newValue) : (entry.newValue ?? '—')}</span>
+                  <span>{formatDateTime(entry.createdAt)}</span>
+                </React.Fragment>
+              ))}
             </div>
-          </div>
-        )}
-
-        {/* History section */}
-        <div style={sectionStyle}>
-          <div style={sectionHeaderStyle}>History</div>
-          <div style={{ padding: '0.75rem' }}>
-            {historyLoading && <BusyIndicator active size="S" />}
-            {!historyLoading && history.length === 0 && (
-              <Text style={{ color: 'var(--sapNeutralColor)' }}>No changes recorded yet.</Text>
-            )}
-            {!historyLoading && history.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,auto) minmax(80px,auto) minmax(80px,auto) minmax(120px,1fr)', gap: '0.4rem 1rem', alignItems: 'center', fontSize: 'var(--sapFontSize)' }}>
-                <span style={{ fontWeight: 'bold' }}>Field</span>
-                <span style={{ fontWeight: 'bold' }}>Old</span>
-                <span style={{ fontWeight: 'bold' }}>New</span>
-                <span style={{ fontWeight: 'bold' }}>Changed At</span>
-                {history.map((entry) => (
-                  <React.Fragment key={entry.ID}>
-                    <span>{entry.field}</span>
-                    <span>{entry.field === 'dueDate' ? formatDate(entry.oldValue) : (entry.oldValue ?? '—')}</span>
-                    <span>{entry.field === 'dueDate' ? formatDate(entry.newValue) : (entry.newValue ?? '—')}</span>
-                    <span>{formatDateTime(entry.createdAt)}</span>
-                  </React.Fragment>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-      </FlexBox>
-    </FlexBox>
+          )}
+      </ObjectPageSection>
+    </ObjectPage>
   )
 }
 
