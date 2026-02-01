@@ -20,6 +20,13 @@ export interface TaskHistory {
   createdAt: string
 }
 
+export interface TaskComment {
+  ID: string
+  content: string
+  createdAt: string
+  createdBy: string
+}
+
 export interface Task {
   ID: string
   title: string
@@ -28,4 +35,5 @@ export interface Task {
   status: TaskStatus
   createdAt: string
   tags?: TaskTag[]
+  comments?: TaskComment[]
 }

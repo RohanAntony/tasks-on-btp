@@ -1,0 +1,4 @@
+ID,task_ID,content,createdAt,createdBy,modifiedAt,modifiedBy
+30000000-0000-0000-0000-000000000001,10000000-0000-0000-0000-000000000001,Reproduced on Chrome and Firefox. Looks like a missing null check on the email field.,2026-01-10T09:00:00Z,anonymous,2026-01-10T09:00:00Z,anonymous
+30000000-0000-0000-0000-000000000002,10000000-0000-0000-0000-000000000001,Fix has been drafted. Waiting for code review.,2026-01-12T14:00:00Z,anonymous,2026-01-12T14:00:00Z,anonymous
+30000000-0000-0000-0000-000000000003,10000000-0000-0000-0000-000000000002,Dark mode tokens identified. Starting implementation.,2026-01-15T10:00:00Z,anonymous,2026-01-15T10:00:00Z,anonymous

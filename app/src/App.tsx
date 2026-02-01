@@ -36,7 +36,7 @@ import editIcon from '@ui5/webcomponents-icons/dist/edit.js'
 import declineIcon from '@ui5/webcomponents-icons/dist/decline.js'
 import closeIcon from '@ui5/webcomponents-icons/dist/decline.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
-import type { Task, TaskHistory, TaskStatus, Tag as TagType } from './types'
+import type { Task, TaskHistory, TaskComment, TaskStatus, Tag as TagType } from './types'
 
 const DATE_FORMAT: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' }
 const formatDate = (value: string | null | undefined) =>
@@ -409,6 +409,9 @@ interface TaskDetailPanelProps {
 function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
   const [history, setHistory] = useState<TaskHistory[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [comments, setComments] = useState<TaskComment[]>(task.comments ?? [])
+  const [newComment, setNewComment] = useState('')
+  const [commentSaving, setCommentSaving] = useState(false)
 
   useEffect(() => {
     setHistoryLoading(true)
@@ -417,6 +420,29 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
       .then((data: { value: TaskHistory[] }) => setHistory(data.value ?? []))
       .finally(() => setHistoryLoading(false))
   }, [task.ID])
+
+  useEffect(() => {
+    setComments(task.comments ?? [])
+  }, [task.ID])
+
+  async function addComment() {
+    const content = newComment.trim()
+    if (!content) return
+    setCommentSaving(true)
+    try {
+      const res = await fetch('/odata/v4/tasks/TaskComments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_ID: task.ID, content }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const created: TaskComment = await res.json()
+      setComments((prev) => [...prev, created])
+      setNewComment('')
+    } finally {
+      setCommentSaving(false)
+    }
+  }
 
   const gridStyle: React.CSSProperties = {
     display: 'grid',
@@ -470,6 +496,34 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
         </ObjectPageSection>
       )}
 
+      <ObjectPageSection id="comments" titleText="Comments">
+          <FlexBox direction="Column" style={{ gap: '0.75rem' }}>
+            {comments.length === 0 && (
+              <Text style={{ color: 'var(--sapNeutralColor)' }}>No comments yet.</Text>
+            )}
+            {comments.map((c) => (
+              <div key={c.ID} style={{ borderLeft: '3px solid var(--sapList_HeaderBackground)', paddingLeft: '0.75rem' }}>
+                <div style={{ fontSize: 'var(--sapFontSmallSize)', color: 'var(--sapContent_LabelColor)', marginBottom: '0.25rem' }}>
+                  {formatDateTime(c.createdAt)}
+                </div>
+                <Text style={{ whiteSpace: 'pre-wrap' }}>{c.content}</Text>
+              </div>
+            ))}
+            <FlexBox style={{ gap: '0.5rem', alignItems: 'flex-end' }}>
+              <TextArea
+                value={newComment}
+                onInput={(e) => setNewComment(e.target.value)}
+                placeholder="Add a comment…"
+                rows={2}
+                style={{ flex: 1 }}
+              />
+              <Button design="Emphasized" onClick={addComment} disabled={commentSaving || !newComment.trim()}>
+                {commentSaving ? 'Adding…' : 'Add'}
+              </Button>
+            </FlexBox>
+          </FlexBox>
+      </ObjectPageSection>
+
       <ObjectPageSection id="history" titleText="History">
           {historyLoading && <BusyIndicator active size="S" />}
           {!historyLoading && history.length === 0 && (
@@ -507,7 +561,7 @@ export default function App() {
   const [editTask, setEditTask] = useState<Task | null>(null)
 
   useEffect(() => {
-    fetch('/odata/v4/tasks/Tasks?$expand=tags($expand=tag)')
+    fetch('/odata/v4/tasks/Tasks?$expand=tags($expand=tag),comments($orderby=createdAt asc)')
       .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json() })
       .then((data: { value: Task[] }) => setTasks(data.value ?? []))
       .catch((err: unknown) => setFetchError(String(err)))

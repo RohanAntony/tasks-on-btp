@@ -16,6 +16,7 @@ type TaskStatus : String enum {
         status      : TaskStatus;
         history     : Composition of many TaskHistory on history.task = $self;
         tags        : Composition of many TaskTags on tags.task = $self;
+        comments    : Composition of many TaskComments on comments.task = $self;
   }
 
   entity Tags {
@@ -36,5 +37,11 @@ type TaskStatus : String enum {
         field       : String;
         oldValue    : String;
         newValue    : String;
+  }
+
+  entity TaskComments : managed {
+    key ID      : UUID;
+        task    : Association to Tasks;
+        content : String;
   }
 }
