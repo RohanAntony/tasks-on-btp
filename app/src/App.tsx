@@ -60,6 +60,21 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   completed: 'Completed',
 }
 
+const HISTORY_FIELD_LABEL: Record<string, string> = {
+  title: 'Title',
+  description: 'Description',
+  dueDate: 'Due Date',
+  status: 'Status',
+  tags: 'Tags',
+}
+
+function formatHistoryValue(field: string, value: string | null): string {
+  if (value == null) return '—'
+  if (field === 'dueDate') return formatDate(value)
+  if (field === 'status') return STATUS_LABEL[value as TaskStatus] ?? value
+  return value
+}
+
 function tagTextColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
@@ -537,9 +552,9 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
               <span style={{ fontWeight: 'bold' }}>Changed At</span>
               {history.map((entry) => (
                 <React.Fragment key={entry.ID}>
-                  <span>{entry.field}</span>
-                  <span>{entry.field === 'dueDate' ? formatDate(entry.oldValue) : (entry.oldValue ?? '—')}</span>
-                  <span>{entry.field === 'dueDate' ? formatDate(entry.newValue) : (entry.newValue ?? '—')}</span>
+                  <span>{HISTORY_FIELD_LABEL[entry.field] ?? entry.field}</span>
+                  <span>{formatHistoryValue(entry.field, entry.oldValue)}</span>
+                  <span>{formatHistoryValue(entry.field, entry.newValue)}</span>
                   <span>{formatDateTime(entry.createdAt)}</span>
                 </React.Fragment>
               ))}
