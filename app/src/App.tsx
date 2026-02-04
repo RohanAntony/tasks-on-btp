@@ -664,7 +664,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <ShellBar primaryTitle="Task Management" />
+      <ShellBar primaryTitle="Task Management" logo={<img src="/logo.png" alt="logo" style={{ height: '1.75rem' }} />} />
 
       <FlexibleColumnLayout
         layout={selectedTask ? FCLLayout.TwoColumnsStartExpanded : FCLLayout.OneColumn}
