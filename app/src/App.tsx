@@ -2,7 +2,6 @@ import '@ui5/webcomponents-react/dist/Assets.js'
 import React, { useEffect, useRef, useState } from 'react'
 import { ThemeProvider } from '@ui5/webcomponents-react/ThemeProvider'
 import { ShellBar } from '@ui5/webcomponents-react/ShellBar'
-import { ShellBarItem } from '@ui5/webcomponents-react/ShellBarItem'
 import { FlexibleColumnLayout } from '@ui5/webcomponents-react/FlexibleColumnLayout'
 import { Table } from '@ui5/webcomponents-react/Table'
 import { TableHeaderRow } from '@ui5/webcomponents-react/TableHeaderRow'
@@ -600,6 +599,7 @@ export default function App() {
         style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--sapGroup_TitleBorderColor)' }}
       >
         <Title level="H3">Tasks</Title>
+        <Button icon={addIcon} design="Emphasized" onClick={openCreate}>New Task</Button>
       </FlexBox>
 
       {loading && <BusyIndicator active size="L" style={{ margin: '2rem auto' }} />}
@@ -664,9 +664,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <ShellBar primaryTitle="SAP Tasks" secondaryTitle="Task Management">
-        <ShellBarItem icon={addIcon} text="New Task" onClick={openCreate} />
-      </ShellBar>
+      <ShellBar primaryTitle="Task Management" />
 
       <FlexibleColumnLayout
         layout={selectedTask ? FCLLayout.TwoColumnsStartExpanded : FCLLayout.OneColumn}
