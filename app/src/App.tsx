@@ -1,7 +1,9 @@
 import '@ui5/webcomponents-react/dist/Assets.js'
+import { setTheme } from '@ui5/webcomponents-base/dist/config/Theme.js'
 import React, { useEffect, useRef, useState } from 'react'
 import { ThemeProvider } from '@ui5/webcomponents-react/ThemeProvider'
 import { ShellBar } from '@ui5/webcomponents-react/ShellBar'
+import { ShellBarItem } from '@ui5/webcomponents-react/ShellBarItem'
 import { FlexibleColumnLayout } from '@ui5/webcomponents-react/FlexibleColumnLayout'
 import { Table } from '@ui5/webcomponents-react/Table'
 import { TableHeaderRow } from '@ui5/webcomponents-react/TableHeaderRow'
@@ -34,6 +36,8 @@ import addIcon from '@ui5/webcomponents-icons/dist/add.js'
 import editIcon from '@ui5/webcomponents-icons/dist/edit.js'
 import declineIcon from '@ui5/webcomponents-icons/dist/decline.js'
 import closeIcon from '@ui5/webcomponents-icons/dist/decline.js'
+import darkModeIcon from '@ui5/webcomponents-icons/dist/dark-mode.js'
+import lightModeIcon from '@ui5/webcomponents-icons/dist/light-mode.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { Task, TaskHistory, TaskComment, TaskStatus, Tag as TagType } from './types'
 
@@ -544,7 +548,7 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
             <Text style={{ color: 'var(--sapNeutralColor)' }}>No changes recorded yet.</Text>
           )}
           {!historyLoading && history.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 160px 160px 180px', gap: '0.4rem 1rem', alignItems: 'center', fontSize: 'var(--sapFontSize)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 160px 160px 180px', gap: '0.4rem 1rem', alignItems: 'center', fontSize: 'var(--sapFontSize)', color: 'var(--sapTextColor)' }}>
               <span style={{ fontWeight: 'bold' }}>Field</span>
               <span style={{ fontWeight: 'bold' }}>Old</span>
               <span style={{ fontWeight: 'bold' }}>New</span>
@@ -573,6 +577,13 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
+  const [darkMode, setDarkMode] = useState(false)
+
+  function toggleDarkMode() {
+    const next = !darkMode
+    setDarkMode(next)
+    setTheme(next ? 'sap_horizon_dark' : 'sap_horizon')
+  }
 
   useEffect(() => {
     fetch('/odata/v4/tasks/Tasks?$expand=tags($expand=tag),comments($orderby=createdAt asc)')
@@ -664,7 +675,12 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <ShellBar primaryTitle="Task Management" logo={<img src="/logo.png" alt="logo" style={{ height: '1.75rem' }} />} />
+      <ShellBar
+        primaryTitle="Task Management"
+        logo={<img src="/logo.png" alt="logo" style={{ height: '1.75rem' }} />}
+      >
+        <ShellBarItem icon={darkMode ? lightModeIcon : darkModeIcon} text={darkMode ? 'Light Mode' : 'Dark Mode'} onClick={toggleDarkMode} />
+      </ShellBar>
 
       <FlexibleColumnLayout
         layout={selectedTask ? FCLLayout.TwoColumnsStartExpanded : FCLLayout.OneColumn}
