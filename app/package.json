@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "zip": "cd dist && zip -r ../saptasks.zip . && cd .."
   },
   "dependencies": {
     "@ui5/webcomponents": "^2.9.0",

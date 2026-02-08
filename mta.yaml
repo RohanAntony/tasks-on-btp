@@ -1,0 +1,106 @@
+_schema-version: "3.3.0"
+ID: sap-tasks
+description: SAP Task Management Application
+version: 1.0.0
+parameters:
+  enable-parallel-deployments: true
+
+modules:
+  # ── CAP Backend ──────────────────────────────────────────────────────────────
+  - name: sap-tasks-srv
+    type: nodejs
+    path: .
+    parameters:
+      buildpack: nodejs_buildpack
+      disk-quota: 512M
+      memory: 256M
+    build-parameters:
+      builder: custom
+      commands:
+        - npm ci --production
+        - npx cds deploy --to sqlite:sap-tasks.db
+      build-result: .
+      ignore:
+        - app/
+        - approuter/
+        - html5-deployer/
+        - mta_archives/
+        - .git/
+        - .claude/
+        - "*.mtar"
+        - "Makefile_*.mta"
+        - readme.md
+    provides:
+      - name: srv-api
+        properties:
+          url: ${default-url}
+
+  # ── AppRouter ────────────────────────────────────────────────────────────────
+  - name: sap-tasks-approuter
+    type: approuter.nodejs
+    path: approuter
+    parameters:
+      keep-existing-routes: true
+      disk-quota: 512M
+      memory: 256M
+    requires:
+      - name: sap-tasks-html5-runtime
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{url}
+          forwardAuthToken: false
+    build-parameters:
+      builder: custom
+      commands:
+        - npm install --production
+
+  # ── Frontend Build ────────────────────────────────────────────────────────────
+  - name: sap-tasks-ui
+    type: html5
+    path: app
+    build-parameters:
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build
+        - npm run zip
+      supported-platforms: []
+      build-result: .
+
+  # ── HTML5 Deployer ────────────────────────────────────────────────────────────
+  - name: sap-tasks-ui-deployer
+    type: com.sap.application.content
+    path: html5-deployer
+    parameters:
+      disk-quota: 256M
+      memory: 128M
+    requires:
+      - name: sap-tasks-html5-host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: resources
+      ignore:
+        - ".gitignore"
+        - ".gitkeep"
+      requires:
+        - name: sap-tasks-ui
+          target-path: resources/
+          artifacts:
+            - saptasks.zip
+
+# ── CF Services ──────────────────────────────────────────────────────────────
+resources:
+  - name: sap-tasks-html5-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+
+  - name: sap-tasks-html5-runtime
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-runtime

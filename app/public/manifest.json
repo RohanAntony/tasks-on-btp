@@ -1,0 +1,15 @@
+{
+  "sap.app": {
+    "id": "saptasks",
+    "type": "application",
+    "title": "Task Management",
+    "description": "SAP Task Management Application",
+    "applicationVersion": {
+      "version": "1.0.0"
+    }
+  },
+  "sap.cloud": {
+    "public": true,
+    "service": "saptasks"
+  }
+}

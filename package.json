@@ -2,13 +2,16 @@
   "name": "sap-tasks",
   "version": "1.0.0",
   "dependencies": {
-    "@sap/cds": "^9"
-  },
-  "devDependencies": {
+    "@sap/cds": "^9",
+    "@sap/xssec": "^4",
     "@cap-js/sqlite": "^2.4"
   },
+  "devDependencies": {},
   "scripts": {
-    "start": "cds-serve"
+    "start": "cds-serve",
+    "build:db": "cds deploy --to sqlite:sap-tasks.db",
+    "build:ui": "npm --prefix app ci && npm --prefix app run build && cp -r app/dist approuter/resources",
+    "build": "npm run build:ui"
   },
   "private": true
 }

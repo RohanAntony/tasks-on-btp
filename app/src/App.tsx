@@ -508,7 +508,7 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
           </div>
       </ObjectPageSection>
 
-      {task.description && (
+      {!!task.description && (
         <ObjectPageSection id="description" titleText="Description">
           <Text style={{ whiteSpace: 'pre-wrap' }}>{task.description}</Text>
         </ObjectPageSection>

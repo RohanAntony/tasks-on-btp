@@ -13,8 +13,16 @@ mta_archives/
 *_mta_build_tmp
 *.mtar
 
+# AppRouter built resources (generated from frontend build)
+approuter/resources/
+
+# HTML5 deployer zipped artifacts
+html5-deployer/resources/*.zip
+app/saptasks.zip
+
 # Other
 .DS_Store
+.log
 
 # @cap-js/cds-typer
 @cds-models
