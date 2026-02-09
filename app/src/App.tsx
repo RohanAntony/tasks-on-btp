@@ -420,11 +420,12 @@ function TaskHistoryDialog({ task, onClose }: TaskHistoryDialogProps) {
 
 interface TaskDetailPanelProps {
   task: Task
+  refreshKey: number
   onEdit: () => void
   onClose: () => void
 }
 
-function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
+function TaskDetailPanel({ task, refreshKey, onEdit, onClose }: TaskDetailPanelProps) {
   const [history, setHistory] = useState<TaskHistory[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [comments, setComments] = useState<TaskComment[]>(task.comments ?? [])
@@ -437,7 +438,7 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
       .then((res) => res.json())
       .then((data: { value: TaskHistory[] }) => setHistory(data.value ?? []))
       .finally(() => setHistoryLoading(false))
-  }, [task.ID])
+  }, [task.ID, refreshKey])
 
   useEffect(() => {
     setComments(task.comments ?? [])
@@ -490,10 +491,10 @@ function TaskDetailPanel({ task, onEdit, onClose }: TaskDetailPanelProps) {
             <Tag design={STATUS_DESIGN[task.status]}>{STATUS_LABEL[task.status]}</Tag>
 
             <Label>Created</Label>
-            <span style={{ fontSize: 'var(--sapFontSize)' }}>{formatDate(task.createdAt)}</span>
+            <span style={{ fontSize: 'var(--sapFontSize)', color: 'var(--sapTextColor)' }}>{formatDate(task.createdAt)}</span>
 
             <Label>Due Date</Label>
-            <span style={{ fontSize: 'var(--sapFontSize)' }}>{formatDate(task.dueDate)}</span>
+            <span style={{ fontSize: 'var(--sapFontSize)', color: 'var(--sapTextColor)' }}>{formatDate(task.dueDate)}</span>
 
             {(task.tags ?? []).filter((tt) => tt.tag != null).length > 0 && (
               <>
@@ -578,6 +579,7 @@ export default function App() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [darkMode, setDarkMode] = useState(false)
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0)
 
   function toggleDarkMode() {
     const next = !darkMode
@@ -599,7 +601,10 @@ export default function App() {
 
   function handleUpdated(updated: Task) {
     setTasks((prev) => prev.map((t) => (t.ID === updated.ID ? updated : t)))
-    if (selectedTask?.ID === updated.ID) setSelectedTask(updated)
+    if (selectedTask?.ID === updated.ID) {
+      setSelectedTask(updated)
+      setDetailRefreshKey((k) => k + 1)
+    }
   }
 
   const startColumn = (
@@ -667,6 +672,7 @@ export default function App() {
     <div slot="midColumn" style={{ height: '100%' }}>
       <TaskDetailPanel
         task={selectedTask}
+        refreshKey={detailRefreshKey}
         onEdit={() => openEdit(selectedTask)}
         onClose={() => setSelectedTask(null)}
       />
