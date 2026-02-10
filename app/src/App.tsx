@@ -38,6 +38,8 @@ import declineIcon from '@ui5/webcomponents-icons/dist/decline.js'
 import closeIcon from '@ui5/webcomponents-icons/dist/decline.js'
 import darkModeIcon from '@ui5/webcomponents-icons/dist/dark-mode.js'
 import lightModeIcon from '@ui5/webcomponents-icons/dist/light-mode.js'
+import gridIcon from '@ui5/webcomponents-icons/dist/grid.js'
+import tableViewIcon from '@ui5/webcomponents-icons/dist/table-view.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { Task, TaskHistory, TaskComment, TaskStatus, Tag as TagType } from './types'
 
@@ -569,6 +571,118 @@ function TaskDetailPanel({ task, refreshKey, onEdit, onClose }: TaskDetailPanelP
   )
 }
 
+// ─── KanbanBoard ──────────────────────────────────────────────────────────────
+
+const STATUSES: TaskStatus[] = ['open', 'in_progress', 'review', 'completed']
+
+interface KanbanBoardProps {
+  tasks: Task[]
+  selectedTask: Task | null
+  onSelect: (task: Task) => void
+}
+
+function KanbanBoard({ tasks, selectedTask, onSelect }: KanbanBoardProps) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: '0.75rem',
+      padding: '0.75rem',
+      height: '100%',
+      boxSizing: 'border-box',
+      overflowY: 'auto',
+      alignItems: 'start',
+    }}>
+      {STATUSES.map((status) => {
+        const columnTasks = tasks.filter((t) => t.status === status)
+        return (
+          <div key={status} style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+            border: '1px solid var(--sapGroup_TitleBorderColor)',
+            borderRadius: '0.5rem',
+            overflow: 'hidden',
+            background: 'var(--sapList_Background)',
+          }}>
+            {/* Column header */}
+            <div style={{
+              padding: '0.5rem 0.75rem',
+              borderBottom: '1px solid var(--sapGroup_TitleBorderColor)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'var(--sapList_HeaderBackground)',
+            }}>
+              <Tag design={STATUS_DESIGN[status]}>{STATUS_LABEL[status]}</Tag>
+              <span style={{
+                marginLeft: 'auto',
+                minWidth: '1.25rem',
+                height: '1.25rem',
+                padding: '0 0.375rem',
+                borderRadius: '0.625rem',
+                background: 'var(--sapNeutralBackground)',
+                border: '1px solid var(--sapNeutralBorderColor)',
+                fontSize: 'var(--sapFontSmallSize)',
+                color: 'var(--sapNeutralTextColor)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold',
+                boxSizing: 'border-box',
+              }}>{columnTasks.length}</span>
+            </div>
+
+            {/* Cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem' }}>
+              {columnTasks.length === 0 && (
+                <span style={{ fontSize: 'var(--sapFontSmallSize)', color: 'var(--sapContent_LabelColor)', textAlign: 'center', padding: '0.5rem 0' }}>
+                  No tasks
+                </span>
+              )}
+              {columnTasks.map((task) => (
+                <div
+                  key={task.ID}
+                  onClick={() => onSelect(task)}
+                  style={{
+                    padding: '0.6rem 0.75rem',
+                    borderRadius: '0.375rem',
+                    border: `1px solid ${selectedTask?.ID === task.ID ? 'var(--sapSelectedColor)' : 'var(--sapGroup_TitleBorderColor)'}`,
+                    background: selectedTask?.ID === task.ID ? 'var(--sapList_SelectionBackgroundColor)' : 'var(--sapList_Background)',
+                    color: 'var(--sapTextColor)',
+                    fontFamily: 'var(--sapFontFamily)',
+                    fontSize: 'var(--sapFontSize)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <span style={{ wordBreak: 'break-word' }}>
+                    {task.title}
+                  </span>
+                  {task.dueDate && (
+                    <span style={{ fontSize: 'var(--sapFontSmallSize)', color: 'var(--sapContent_LabelColor)' }}>
+                      {formatDate(task.dueDate)}
+                    </span>
+                  )}
+                  {(task.tags ?? []).filter((tt) => tt.tag != null).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.1rem' }}>
+                      {(task.tags ?? []).filter((tt) => tt.tag != null).map((tt) => (
+                        <ColorTag key={tt.tag.ID} name={tt.tag.name} color={tt.tag.color ?? null} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -580,6 +694,7 @@ export default function App() {
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [darkMode, setDarkMode] = useState(false)
   const [detailRefreshKey, setDetailRefreshKey] = useState(0)
+  const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
 
   function toggleDarkMode() {
     const next = !darkMode
@@ -632,7 +747,7 @@ export default function App() {
         </MessageStrip>
       )}
 
-      {!loading && !fetchError && tasks.length > 0 && (
+      {!loading && !fetchError && tasks.length > 0 && viewMode === 'table' && (
         <Table
           headerRow={
             <TableHeaderRow sticky>
@@ -665,6 +780,10 @@ export default function App() {
           ))}
         </Table>
       )}
+
+      {!loading && !fetchError && tasks.length > 0 && viewMode === 'board' && (
+        <KanbanBoard tasks={tasks} selectedTask={selectedTask} onSelect={setSelectedTask} />
+      )}
     </FlexBox>
   )
 
@@ -686,6 +805,7 @@ export default function App() {
         logo={<img src="/logo.png" alt="logo" style={{ height: '1.75rem' }} />}
       >
         <ShellBarItem icon={darkMode ? lightModeIcon : darkModeIcon} text={darkMode ? 'Light Mode' : 'Dark Mode'} onClick={toggleDarkMode} />
+        <ShellBarItem icon={viewMode === 'table' ? gridIcon : tableViewIcon} text={viewMode === 'table' ? 'Board View' : 'Table View'} onClick={() => setViewMode((v) => v === 'table' ? 'board' : 'table')} />
       </ShellBar>
 
       <FlexibleColumnLayout
