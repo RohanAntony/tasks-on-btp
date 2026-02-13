@@ -579,9 +579,46 @@ interface KanbanBoardProps {
   tasks: Task[]
   selectedTask: Task | null
   onSelect: (task: Task) => void
+  onStatusChange: (taskId: string, newStatus: TaskStatus) => void
 }
 
-function KanbanBoard({ tasks, selectedTask, onSelect }: KanbanBoardProps) {
+function KanbanBoard({ tasks, selectedTask, onSelect, onStatusChange }: KanbanBoardProps) {
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null)
+
+  function handleDragStart(e: React.DragEvent<HTMLDivElement>, taskId: string) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', taskId)
+    setDraggedTaskId(taskId)
+  }
+
+  function handleDragEnd() {
+    setDraggedTaskId(null)
+    setDragOverStatus(null)
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>, status: TaskStatus) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverStatus(status)
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOverStatus(null)
+    }
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>, targetStatus: TaskStatus) {
+    e.preventDefault()
+    const taskId = e.dataTransfer.getData('text/plain')
+    setDraggedTaskId(null)
+    setDragOverStatus(null)
+    const task = tasks.find((t) => t.ID === taskId)
+    if (!task || task.status === targetStatus) return
+    onStatusChange(taskId, targetStatus)
+  }
+
   return (
     <div style={{
       display: 'grid',
@@ -595,16 +632,26 @@ function KanbanBoard({ tasks, selectedTask, onSelect }: KanbanBoardProps) {
     }}>
       {STATUSES.map((status) => {
         const columnTasks = tasks.filter((t) => t.status === status)
+        const isDropTarget = dragOverStatus === status
         return (
-          <div key={status} style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem',
-            border: '1px solid var(--sapGroup_TitleBorderColor)',
-            borderRadius: '0.5rem',
-            overflow: 'hidden',
-            background: 'var(--sapList_Background)',
-          }}>
+          <div
+            key={status}
+            onDragOver={(e) => handleDragOver(e, status)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, status)}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              border: '1px solid var(--sapGroup_TitleBorderColor)',
+              borderRadius: '0.5rem',
+              overflow: 'hidden',
+              background: isDropTarget ? 'var(--sapList_SelectionBackgroundColor)' : 'var(--sapList_Background)',
+              outline: isDropTarget ? '2px solid var(--sapSelectedColor)' : 'none',
+              outlineOffset: '-1px',
+              transition: 'background 0.15s ease',
+            }}
+          >
             {/* Column header */}
             <div style={{
               padding: '0.5rem 0.75rem',
@@ -643,6 +690,9 @@ function KanbanBoard({ tasks, selectedTask, onSelect }: KanbanBoardProps) {
               {columnTasks.map((task) => (
                 <div
                   key={task.ID}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, task.ID)}
+                  onDragEnd={handleDragEnd}
                   onClick={() => onSelect(task)}
                   style={{
                     padding: '0.6rem 0.75rem',
@@ -652,10 +702,12 @@ function KanbanBoard({ tasks, selectedTask, onSelect }: KanbanBoardProps) {
                     color: 'var(--sapTextColor)',
                     fontFamily: 'var(--sapFontFamily)',
                     fontSize: 'var(--sapFontSize)',
-                    cursor: 'pointer',
+                    cursor: draggedTaskId === task.ID ? 'grabbing' : 'grab',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.35rem',
+                    opacity: draggedTaskId === task.ID ? 0.4 : 1,
+                    userSelect: 'none',
                   }}
                 >
                   <span style={{ wordBreak: 'break-word' }}>
@@ -722,6 +774,27 @@ export default function App() {
     }
   }
 
+  async function handleStatusChange(taskId: string, newStatus: TaskStatus) {
+    const previousTasks = tasks
+    setTasks((prev) => prev.map((t) => (t.ID === taskId ? { ...t, status: newStatus } : t)))
+    if (selectedTask?.ID === taskId)
+      setSelectedTask((prev) => prev ? { ...prev, status: newStatus } : null)
+    try {
+      const res = await fetch(`/odata/v4/tasks/Tasks('${taskId}')`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    } catch {
+      setTasks(previousTasks)
+      if (selectedTask?.ID === taskId) {
+        const rolled = previousTasks.find((t) => t.ID === taskId)
+        if (rolled) setSelectedTask(rolled)
+      }
+    }
+  }
+
   const startColumn = (
     <FlexBox direction="Column" style={{ height: '100%' }}>
       <FlexBox
@@ -782,7 +855,7 @@ export default function App() {
       )}
 
       {!loading && !fetchError && tasks.length > 0 && viewMode === 'board' && (
-        <KanbanBoard tasks={tasks} selectedTask={selectedTask} onSelect={setSelectedTask} />
+        <KanbanBoard tasks={tasks} selectedTask={selectedTask} onSelect={setSelectedTask} onStatusChange={handleStatusChange} />
       )}
     </FlexBox>
   )
