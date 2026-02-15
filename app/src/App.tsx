@@ -551,7 +551,7 @@ function TaskDetailPanel({ task, refreshKey, onEdit, onClose }: TaskDetailPanelP
             <Text style={{ color: 'var(--sapNeutralColor)' }}>No changes recorded yet.</Text>
           )}
           {!historyLoading && history.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 160px 160px 180px', gap: '0.4rem 1rem', alignItems: 'center', fontSize: 'var(--sapFontSize)', color: 'var(--sapTextColor)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr auto', gap: '0.4rem 1rem', alignItems: 'center', fontSize: 'var(--sapFontSize)', color: 'var(--sapTextColor)' }}>
               <span style={{ fontWeight: 'bold' }}>Field</span>
               <span style={{ fontWeight: 'bold' }}>Old</span>
               <span style={{ fontWeight: 'bold' }}>New</span>
