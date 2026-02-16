@@ -51,6 +51,24 @@ const DATETIME_FORMAT: Intl.DateTimeFormatOptions = { ...DATE_FORMAT, hour: '2-d
 const formatDateTime = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleString('en-GB', DATETIME_FORMAT) : '—'
 
+// ─── CSRF-aware fetch ─────────────────────────────────────────────────────────
+
+let _csrfToken: string | null = null
+
+async function getCsrfToken(): Promise<string | null> {
+  if (_csrfToken) return _csrfToken
+  const res = await fetch('/odata/v4/tasks/', { headers: { 'x-csrf-token': 'fetch' } })
+  _csrfToken = res.headers.get('x-csrf-token')
+  return _csrfToken
+}
+
+async function mutate(url: string, method: string, body?: object): Promise<Response> {
+  const token = await getCsrfToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['x-csrf-token'] = token
+  return fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+}
+
 const STATUS_DESIGN: Record<TaskStatus, 'Positive' | 'Critical' | 'Information' | 'Neutral' | 'Negative'> = {
   open: 'Negative',
   in_progress: 'Critical',
@@ -181,19 +199,13 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
     try {
       let savedTask: Task
       if (isEdit) {
-        const res = await fetch(`/odata/v4/tasks/Tasks('${editTask.ID}')`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: form.title.trim(), description: form.description.trim() || null, dueDate: form.dueDate || null, status: form.status }),
-        })
+        const res = await mutate(`/odata/v4/tasks/Tasks('${editTask.ID}')`, 'PATCH',
+          { title: form.title.trim(), description: form.description.trim() || null, dueDate: form.dueDate || null, status: form.status })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         savedTask = { ...editTask, ...form, title: form.title.trim(), description: form.description.trim() || '' }
       } else {
-        const res = await fetch('/odata/v4/tasks/Tasks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: form.title.trim(), description: form.description.trim() || null, dueDate: form.dueDate || null, status: form.status }),
-        })
+        const res = await mutate('/odata/v4/tasks/Tasks', 'POST',
+          { title: form.title.trim(), description: form.description.trim() || null, dueDate: form.dueDate || null, status: form.status })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         savedTask = await res.json()
       }
@@ -204,7 +216,7 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
           const searchRes = await fetch(`/odata/v4/tasks/Tags?$filter=name eq '${encodeURIComponent(t.name)}'`)
           const searchData: { value: TagType[] } = await searchRes.json()
           if (searchData.value.length > 0) return searchData.value[0]
-          const createRes = await fetch('/odata/v4/tasks/Tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: t.name, color: t.color ?? null }) })
+          const createRes = await mutate('/odata/v4/tasks/Tags', 'POST', { name: t.name, color: t.color ?? null })
           const created = (await createRes.json()) as TagType
           setAllTags((prev) => [...prev, created].filter((t) => t != null && t.name != null))
           return created
@@ -212,8 +224,8 @@ function TaskDialog({ open, editTask, onClose, onCreated, onUpdated }: TaskDialo
       )
 
       const existingLinks = (editTask?.tags ?? []).filter((tt) => tt.tag != null)
-      await Promise.all(existingLinks.map((tt) => fetch(`/odata/v4/tasks/TaskTags(task_ID='${savedTask.ID}',tag_ID='${tt.tag.ID}')`, { method: 'DELETE' })))
-      await Promise.all(resolvedTags.map((tag) => fetch('/odata/v4/tasks/TaskTags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_ID: savedTask.ID, tag_ID: tag.ID }) })))
+      await Promise.all(existingLinks.map((tt) => mutate(`/odata/v4/tasks/TaskTags(task_ID='${savedTask.ID}',tag_ID='${tt.tag.ID}')`, 'DELETE')))
+      await Promise.all(resolvedTags.map((tag) => mutate('/odata/v4/tasks/TaskTags', 'POST', { task_ID: savedTask.ID, tag_ID: tag.ID })))
 
       savedTask.tags = resolvedTags.map((tag) => ({ tag_ID: tag.ID, tag }))
       isEdit ? onUpdated(savedTask) : onCreated(savedTask)
@@ -451,11 +463,7 @@ function TaskDetailPanel({ task, refreshKey, onEdit, onClose }: TaskDetailPanelP
     if (!content) return
     setCommentSaving(true)
     try {
-      const res = await fetch('/odata/v4/tasks/TaskComments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_ID: task.ID, content }),
-      })
+      const res = await mutate('/odata/v4/tasks/TaskComments', 'POST', { task_ID: task.ID, content })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const created: TaskComment = await res.json()
       setComments((prev) => [...prev, created])
@@ -780,11 +788,7 @@ export default function App() {
     if (selectedTask?.ID === taskId)
       setSelectedTask((prev) => prev ? { ...prev, status: newStatus } : null)
     try {
-      const res = await fetch(`/odata/v4/tasks/Tasks('${taskId}')`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      })
+      const res = await mutate(`/odata/v4/tasks/Tasks('${taskId}')`, 'PATCH', { status: newStatus })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
     } catch {
       setTasks(previousTasks)

@@ -1,12 +1,19 @@
 {
   "requires": {
     "auth": {
-      "kind": "dummy"
+      "kind": "ias"
     },
     "db": {
       "kind": "sqlite",
       "credentials": {
         "url": "sap-tasks.db"
+      }
+    }
+  },
+  "[development]": {
+    "requires": {
+      "auth": {
+        "kind": "dummy"
       }
     }
   }

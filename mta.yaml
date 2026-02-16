@@ -30,6 +30,8 @@ modules:
         - "*.mtar"
         - "Makefile_*.mta"
         - readme.md
+    requires:
+      - name: sap-tasks-ias
     provides:
       - name: srv-api
         properties:
@@ -45,12 +47,17 @@ modules:
       memory: 256M
     requires:
       - name: sap-tasks-html5-runtime
+      - name: sap-tasks-ias
       - name: srv-api
         group: destinations
         properties:
           name: srv-api
           url: ~{url}
-          forwardAuthToken: false
+          forwardAuthToken: true
+    provides:
+      - name: approuter-url
+        properties:
+          url: ${default-url}
     build-parameters:
       builder: custom
       commands:
@@ -93,6 +100,18 @@ modules:
 
 # ── CF Services ──────────────────────────────────────────────────────────────
 resources:
+  - name: sap-tasks-ias
+    type: org.cloudfoundry.managed-service
+    requires:
+      - name: approuter-url
+    parameters:
+      service: identity
+      service-plan: application
+      config:
+        oauth2-configuration:
+          redirect-uris:
+            - ~{approuter-url/url}/login/callback
+
   - name: sap-tasks-html5-host
     type: org.cloudfoundry.managed-service
     parameters:

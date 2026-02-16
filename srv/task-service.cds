@@ -7,7 +7,9 @@ type TaskStatus : String enum {
   Completed   = 'completed';
 }
 
-@odata service TasksService {
+@odata
+@requires: 'authenticated-user'
+service TasksService {
   entity Tasks : managed {
     key ID          : UUID;
         title       : String;

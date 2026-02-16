@@ -1,23 +1,23 @@
 {
   "welcomeFile": "/saptasks/index.html",
-  "authenticationMethod": "none",
+  "authenticationMethod": "route",
   "routes": [
     {
       "source": "^/odata/(.*)$",
       "destination": "srv-api",
-      "authenticationType": "none"
+      "authenticationType": "ias"
     },
     {
       "source": "^/saptasks/(.*)$",
       "target": "$1",
       "service": "html5-apps-repo-rt",
-      "authenticationType": "none"
+      "authenticationType": "ias"
     },
     {
       "source": "^(.*)$",
       "target": "/saptasks$1",
       "service": "html5-apps-repo-rt",
-      "authenticationType": "none"
+      "authenticationType": "ias"
     }
   ]
 }
