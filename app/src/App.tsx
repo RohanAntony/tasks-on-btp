@@ -27,6 +27,8 @@ import { Option } from '@ui5/webcomponents-react/Option'
 import { DatePicker } from '@ui5/webcomponents-react/DatePicker'
 import { Label } from '@ui5/webcomponents-react/Label'
 import { Text } from '@ui5/webcomponents-react/Text'
+import { SideNavigation } from '@ui5/webcomponents-react/SideNavigation'
+import { SideNavigationItem } from '@ui5/webcomponents-react/SideNavigationItem'
 import FCLLayout from '@ui5/webcomponents-fiori/dist/types/FCLLayout.js'
 import { ObjectPage } from '@ui5/webcomponents-react/ObjectPage'
 import { ObjectPageSection } from '@ui5/webcomponents-react/ObjectPageSection'
@@ -40,6 +42,9 @@ import darkModeIcon from '@ui5/webcomponents-icons/dist/dark-mode.js'
 import lightModeIcon from '@ui5/webcomponents-icons/dist/light-mode.js'
 import gridIcon from '@ui5/webcomponents-icons/dist/grid.js'
 import tableViewIcon from '@ui5/webcomponents-icons/dist/table-view.js'
+import tasksIcon from '@ui5/webcomponents-icons/dist/task.js'
+import homeIcon from '@ui5/webcomponents-icons/dist/home.js'
+import menuIcon from '@ui5/webcomponents-icons/dist/menu2.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { Task, TaskHistory, TaskComment, TaskStatus, Tag as TagType } from './types'
 
@@ -755,6 +760,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false)
   const [detailRefreshKey, setDetailRefreshKey] = useState(0)
   const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
+  const [navOpen, setNavOpen] = useState(false)
 
   function toggleDarkMode() {
     const next = !darkMode
@@ -807,7 +813,10 @@ export default function App() {
         style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--sapGroup_TitleBorderColor)' }}
       >
         <Title level="H3">Tasks</Title>
-        <Button icon={addIcon} design="Emphasized" onClick={openCreate}>New Task</Button>
+        <FlexBox style={{ gap: '0.5rem' }}>
+          <Button icon={viewMode === 'table' ? gridIcon : tableViewIcon} design="Transparent" tooltip={viewMode === 'table' ? 'Board View' : 'Table View'} onClick={() => setViewMode((v) => v === 'table' ? 'board' : 'table')} />
+          <Button icon={addIcon} design="Emphasized" onClick={openCreate}>New Task</Button>
+        </FlexBox>
       </FlexBox>
 
       {loading && <BusyIndicator active size="L" style={{ margin: '2rem auto' }} />}
@@ -880,20 +889,44 @@ export default function App() {
       <ShellBar
         primaryTitle="Task Management"
         logo={<img src="/logo.png" alt="logo" style={{ height: '1.75rem' }} />}
+        startButton={
+          <Button
+            icon={menuIcon}
+            design="Transparent"
+            slot="startButton"
+            tooltip="Navigation menu"
+            onClick={() => setNavOpen((o) => !o)}
+          />
+        }
       >
         <ShellBarItem icon={darkMode ? lightModeIcon : darkModeIcon} text={darkMode ? 'Light Mode' : 'Dark Mode'} onClick={toggleDarkMode} />
-        <ShellBarItem icon={viewMode === 'table' ? gridIcon : tableViewIcon} text={viewMode === 'table' ? 'Board View' : 'Table View'} onClick={() => setViewMode((v) => v === 'table' ? 'board' : 'table')} />
       </ShellBar>
 
-      <FlexibleColumnLayout
-        layout={selectedTask ? FCLLayout.TwoColumnsStartExpanded : FCLLayout.OneColumn}
-        style={{ height: 'calc(100vh - 3rem)' }}
-      >
-        <div slot="startColumn" style={{ height: '100%' }}>
-          {startColumn}
+      <div style={{ display: 'flex', height: 'calc(100vh - 3rem)' }}>
+        {/* Side navigation panel */}
+        <div style={{
+          flexShrink: 0,
+          borderRight: '1px solid var(--sapGroup_TitleBorderColor)',
+        }}>
+          <SideNavigation
+            collapsed={!navOpen}
+            style={{ height: '100%' }}
+          >
+            <SideNavigationItem text="Home" icon={homeIcon} data-key="home" />
+            <SideNavigationItem text="Tasks" icon={tasksIcon} data-key="tasks" />
+          </SideNavigation>
         </div>
-        {midColumn}
-      </FlexibleColumnLayout>
+
+        <FlexibleColumnLayout
+          layout={selectedTask ? FCLLayout.TwoColumnsStartExpanded : FCLLayout.OneColumn}
+          style={{ flex: 1, minWidth: 0 }}
+        >
+          <div slot="startColumn" style={{ height: '100%' }}>
+            {startColumn}
+          </div>
+          {midColumn}
+        </FlexibleColumnLayout>
+      </div>
 
       <TaskDialog
         open={dialogOpen}
